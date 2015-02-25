@@ -170,7 +170,7 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
             $value = parent::asDateTime($value);
         }
 
-        return new MongoDate($value->getTimestamp());
+        return new MongoDate($value->getTimestamp(), floor($value->format('u') / 1000000));
     }
 
     /**
