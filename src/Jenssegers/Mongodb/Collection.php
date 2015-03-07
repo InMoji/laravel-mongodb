@@ -64,11 +64,21 @@ class Collection {
         $time = $this->connection->getElapsedTime($start);
 
         // Convert the query to a readable string.
-        $queryString = $this->collection->getName() . '.' . $method . '(' . join(',', $query) . ')';
+        $queryString = "\t" . $this->collection->db . '.' . $this->collection->getName() . '.' . $method . '(' . join(',', $query) . ')';
 
         $this->connection->logQuery($queryString, array(), $time);
 
         return $result;
+    }
+
+    /**
+     * Return the native MOngoCollection object.
+     *
+     * @return MongoCollection
+     */
+    public function getMongoCollection()
+    {
+        return $this->collection;
     }
 
 }
