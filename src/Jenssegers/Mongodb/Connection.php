@@ -203,7 +203,21 @@ class Connection extends \Illuminate\Database\Connection {
      */
     public function __call($method, $parameters)
     {
-        return call_user_func_array(array($this->db, $method), $parameters);
+        for ($i = 0; $i < 5; $i++)
+        {
+            try
+            {
+                $e = null;
+                return call_user_func_array(array($this->db, $method), $parameters);
+            }
+            catch (MongoCursorException $e)
+            {
+                if (strpos($e->getMessage(), 'Remote server has closed the connection') === false || $i >= 4)
+                {
+                    throw $e;
+                }
+            }
+        }
     }
 
 }

@@ -54,9 +54,24 @@ class Collection {
             }
         }
 
-        $start = microtime(true);
-
-        $result = call_user_func_array(array($this->collection, $method), $parameters);
+        for ($i = 0; $i < 5; $i++)
+        {
+            $start = microtime(true);
+            
+            try
+            {
+                $e = null;
+                $result = call_user_func_array(array($this->collection, $method), $parameters);
+                break;
+            }
+            catch (MongoCursorException $e)
+            {
+                if (strpos($e->getMessage(), 'Remote server has closed the connection') === false || $i >= 4)
+                {
+                    throw $e;
+                }
+            }
+        }
 
         // Once we have run the query we will calculate the time that it took to run and
         // then log the query, bindings, and execution time so we will report them on
