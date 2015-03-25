@@ -41,14 +41,24 @@ class Collection {
 
         $result = call_user_func_array([$this->collection, $method], $parameters);
 
-        if ($this->connection->logging())
+        for ($i = 0; $i < 5; $i++)
         {
-            // Once we have run the query we will calculate the time that it took to run and
-            // then log the query, bindings, and execution time so we will report them on
-            // the event that the developer needs them. We'll log time in milliseconds.
-            $time = $this->connection->getElapsedTime($start);
-
-            $query = [];
+            $start = microtime(true);
+            
+            try
+            {
+                $e = null;
+                $result = call_user_func_array(array($this->collection, $method), $parameters);
+                break;
+            }
+            catch (MongoCursorException $e)
+            {
+                if (strpos($e->getMessage(), 'Remote server has closed the connection') === false || $i >= 4)
+                {
+                    throw $e;
+                }
+            }
+        }
 
             // Convert the query paramters to a json string.
             foreach ($parameters as $parameter)
@@ -63,12 +73,23 @@ class Collection {
                 }
             }
 
-            $queryString = $this->collection->getName() . '.' . $method . '(' . join(',', $query) . ')';
+            // Convert the query to a readable string.
+            $queryString = "\t" . $this->collection->db . '.' . $this->collection->getName() . '.' . $method . '(' . join(',', $query) . ')';
 
             $this->connection->logQuery($queryString, [], $time);
         }
 
         return $result;
+    }
+
+    /**
+     * Return the native MOngoCollection object.
+     *
+     * @return MongoCollection
+     */
+    public function getMongoCollection()
+    {
+        return $this->collection;
     }
 
 }
