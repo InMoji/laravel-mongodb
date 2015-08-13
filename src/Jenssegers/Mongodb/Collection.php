@@ -37,10 +37,6 @@ class Collection {
      */
     public function __call($method, $parameters)
     {
-        $start = microtime(true);
-
-        $result = call_user_func_array([$this->collection, $method], $parameters);
-
         for ($i = 0; $i < 5; $i++)
         {
             $start = microtime(true);
@@ -59,6 +55,15 @@ class Collection {
                 }
             }
         }
+
+        if ($this->connection->logging())
+        {
+            // Once we have run the query we will calculate the time that it took to run and
+            // then log the query, bindings, and execution time so we will report them on
+            // the event that the developer needs them. We'll log time in milliseconds.
+            $time = $this->connection->getElapsedTime($start);
+
+            $query = [];
 
             // Convert the query paramters to a json string.
             foreach ($parameters as $parameter)
