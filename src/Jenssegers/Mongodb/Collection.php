@@ -79,7 +79,7 @@ class Collection {
             }
 
             // Convert the query to a readable string.
-            $queryString = "\t" . $this->collection->db . '.' . $this->collection->getName() . '.' . $method . '(' . inmplode(',', $query) . ')';
+            $queryString = "\t" . $this->collection->db . '.' . $this->collection->getName() . '.' . $method . '(' . implode(',', $query) . ')';
 
             $this->connection->logQuery($queryString, [], $time);
         }
