@@ -1,7 +1,7 @@
 <?php namespace Jenssegers\Mongodb;
 
-use Exception, MongoCollection;
-use Jenssegers\Mongodb\Connection;
+use Exception;
+use MongoCollection;
 
 class Collection {
 
@@ -44,7 +44,7 @@ class Collection {
         for ($i = 0; $i < 5; $i++)
         {
             $start = microtime(true);
-            
+
             try
             {
                 $e = null;
@@ -74,7 +74,7 @@ class Collection {
             }
 
             // Convert the query to a readable string.
-            $queryString = "\t" . $this->collection->db . '.' . $this->collection->getName() . '.' . $method . '(' . join(',', $query) . ')';
+            $queryString = "\t" . $this->collection->db . '.' . $this->collection->getName() . '.' . $method . '(' . inmplode(',', $query) . ')';
 
             $this->connection->logQuery($queryString, [], $time);
         }

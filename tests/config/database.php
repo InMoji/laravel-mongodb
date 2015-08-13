@@ -1,26 +1,26 @@
 <?php
 
-return array(
+return [
 
-	'connections' => array(
+    'connections' => [
 
-		'mongodb' => array(
-			'name'	   => 'mongodb',
-			'driver'   => 'mongodb',
-			'host'     => 'localhost',
-			'database' => 'unittest',
-		),
+        'mongodb' => [
+            'name'       => 'mongodb',
+            'driver'     => 'mongodb',
+            'host'       => '127.0.0.1',
+            'database'   => 'unittest',
+        ],
 
-		'mysql' => array(
-			'driver'    => 'mysql',
-			'host'      => 'localhost',
-			'database'  => 'unittest',
-			'username'  => 'travis',
-			'password'  => '',
-			'charset'   => 'utf8',
-			'collation' => 'utf8_unicode_ci',
-			'prefix'    => '',
-		),
-	)
+        'mysql' => [
+            'driver'    => 'mysql',
+            'host'      => '127.0.0.1',
+            'database'  => 'unittest',
+            'username'  => 'travis',
+            'password'  => '',
+            'charset'   => 'utf8',
+            'collation' => 'utf8_unicode_ci',
+            'prefix'    => '',
+        ],
+    ],
 
-);
+];

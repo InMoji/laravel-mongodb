@@ -1,6 +1,10 @@
 <?php namespace Jenssegers\Mongodb\Query;
 
-use MongoId, MongoRegex, MongoDate, DateTime, Closure;
+use MongoId;
+use MongoRegex;
+use MongoDate;
+use DateTime;
+use Closure;
 use Illuminate\Database\Query\Builder as BaseBuilder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Collection;
@@ -9,7 +13,7 @@ use Jenssegers\Mongodb\Connection;
 class Builder extends BaseBuilder {
 
     /**
-     * The database collection
+     * The database collection.
      *
      * @var MongoCollection
      */
@@ -28,6 +32,20 @@ class Builder extends BaseBuilder {
      * @var int
      */
     public $timeout;
+
+    /**
+     * The cursor hint value.
+     *
+     * @var int
+     */
+    public $hint;
+
+    /**
+     * Indicate if we are executing a pagination query.
+     *
+     * @var bool
+     */
+    public $paginating = false;
 
     /**
      * All of the available clause operators.
@@ -98,6 +116,19 @@ class Builder extends BaseBuilder {
     }
 
     /**
+     * Set the cursor hint.
+     *
+     * @param  mixed $index
+     * @return $this
+     */
+    public function hint($index)
+    {
+        $this->hint = $index;
+
+        return $this;
+    }
+
+    /**
      * Execute a query for a single record by ID.
      *
      * @param  mixed  $id
@@ -140,7 +171,7 @@ class Builder extends BaseBuilder {
         $wheres = $this->compileWheres();
 
         // Use MongoDB's aggregation framework when using grouping or aggregation functions.
-        if ($this->groups or $this->aggregate)
+        if ($this->groups or $this->aggregate or $this->paginating)
         {
             $group = array();
 
@@ -155,12 +186,14 @@ class Builder extends BaseBuilder {
                     // this mimics MySQL's behaviour a bit.
                     $group[$column] = array('$last' => '$' . $column);
                 }
-            }
-            else
-            {
-                // If we don't use grouping, set the _id to null to prepare the pipeline for
-                // other aggregation functions.
-                $group['_id'] = null;
+
+                // Do the same for other columns that are selected.
+                foreach ($this->columns as $column)
+                {
+                    $key = str_replace('.', '_', $column);
+
+                    $group[$key] = array('$last' => '$' . $column);
+                }
             }
 
             // Add aggregation functions to the $group part of the aggregation pipeline,
@@ -184,22 +217,26 @@ class Builder extends BaseBuilder {
                 }
             }
 
-            // If no aggregation functions are used, we add the additional select columns
-            // to the pipeline here, aggregating them by $last.
-            else
+            // When using pagination, we limit the number of returned columns
+            // by adding a projection.
+            if ($this->paginating)
             {
                 foreach ($this->columns as $column)
                 {
-                    $key = str_replace('.', '_', $column);
-
-                    $group[$key] = array('$last' => '$' . $column);
+                    $this->projections[$column] = 1;
                 }
+            }
+
+            // The _id field is mandatory when using grouping.
+            if ($group and empty($group['_id']))
+            {
+                $group['_id'] = null;
             }
 
             // Build the aggregation pipeline.
             $pipeline = array();
             if ($wheres) $pipeline[] = array('$match' => $wheres);
-            $pipeline[] = array('$group' => $group);
+            if ($group)  $pipeline[] = array('$group' => $group);
 
             // Apply order and limit
             if ($this->orders)      $pipeline[] = array('$sort' => $this->orders);
@@ -215,7 +252,7 @@ class Builder extends BaseBuilder {
         }
 
         // Distinct query
-        else if ($this->distinct)
+        elseif ($this->distinct)
         {
             // Return distinct results directly
             $column = isset($this->columns[0]) ? $this->columns[0] : '_id';
@@ -253,11 +290,12 @@ class Builder extends BaseBuilder {
             // Execute query and get MongoCursor
             $cursor = $this->collection->find($wheres, $columns);
 
-            // Apply order, offset and limit
+            // Apply order, offset, limit and hint
             if ($this->timeout) $cursor->timeout($this->timeout);
             if ($this->orders)  $cursor->sort($this->orders);
             if ($this->offset)  $cursor->skip($this->offset);
             if ($this->limit)   $cursor->limit($this->limit);
+            if ($this->hint)    $cursor->hint($this->hint);
 
             // Return results as an array with numeric keys
             return iterator_to_array($cursor, false);
@@ -371,6 +409,20 @@ class Builder extends BaseBuilder {
     }
 
     /**
+     * Set the limit and offset for a given page.
+     *
+     * @param  int  $page
+     * @param  int  $perPage
+     * @return \Illuminate\Database\Query\Builder|static
+     */
+    public function forPage($page, $perPage = 15)
+    {
+        $this->paginating = true;
+
+        return $this->skip(($page - 1) * $perPage)->take($perPage);
+    }
+
+    /**
      * Insert a new record into the database.
      *
      * @param  array  $values
@@ -459,7 +511,7 @@ class Builder extends BaseBuilder {
         }
 
         // Protect
-        $this->where(function($query) use ($column)
+        $this->where(function ($query) use ($column)
         {
             $query->where($column, 'exists', false);
 
@@ -564,7 +616,7 @@ class Builder extends BaseBuilder {
             $results = new Collection($this->get([$column, $key]));
 
             // Convert MongoId's to strings so that lists can do its work.
-            $results = $results->map(function($item)
+            $results = $results->map(function ($item)
             {
                 $item['_id'] = (string) $item['_id'];
 
@@ -592,7 +644,7 @@ class Builder extends BaseBuilder {
         }
 
         // Create an expression for the given value
-        else if ( ! is_null($expression))
+        elseif ( ! is_null($expression))
         {
             return new Expression($expression);
         }
@@ -620,7 +672,7 @@ class Builder extends BaseBuilder {
         {
             $query = array($operator => $column);
         }
-        else if ($batch)
+        elseif ($batch)
         {
             $query = array($operator => array($column => array('$each' => $value)));
         }
@@ -785,14 +837,14 @@ class Builder extends BaseBuilder {
 
                 // Operator conversions
                 $convert = array(
-                    'regexp' => 'regex',
-                    'elemmatch' => 'elemMatch',
+                    'regexp'        => 'regex',
+                    'elemmatch'     => 'elemMatch',
                     'geointersects' => 'geoIntersects',
-                    'geowithin' => 'geoWithin',
-                    'nearsphere' => 'nearSphere',
-                    'maxdistance' => 'maxDistance',
-                    'centersphere' => 'centerSphere',
-                    'uniquedocs' => 'uniqueDocs',
+                    'geowithin'     => 'geoWithin',
+                    'nearsphere'    => 'nearSphere',
+                    'maxdistance'   => 'maxDistance',
+                    'centersphere'  => 'centerSphere',
+                    'uniquedocs'    => 'uniqueDocs',
                 );
 
                 if (array_key_exists($where['operator'], $convert))
@@ -814,7 +866,7 @@ class Builder extends BaseBuilder {
                 }
 
                 // Single value.
-                else if (isset($where['value']))
+                elseif (isset($where['value']))
                 {
                     $where['value'] = $this->convertKey($where['value']);
                 }
@@ -831,7 +883,7 @@ class Builder extends BaseBuilder {
             // use the operator of the next where.
             if ($i == 0 and count($wheres) > 1 and $where['boolean'] == 'and')
             {
-                $where['boolean'] = $wheres[$i+1]['boolean'];
+                $where['boolean'] = $wheres[$i + 1]['boolean'];
             }
 
             // We use different methods to compile different wheres.
@@ -846,7 +898,7 @@ class Builder extends BaseBuilder {
 
             // If there are multiple wheres, we will wrap it with $and. This is needed
             // to make nested wheres work.
-            else if (count($wheres) > 1)
+            elseif (count($wheres) > 1)
             {
                 $result = array('$and' => array($result));
             }
@@ -896,7 +948,7 @@ class Builder extends BaseBuilder {
         {
             $query = array($column => $value);
         }
-        else if (array_key_exists($operator, $this->conversion))
+        elseif (array_key_exists($operator, $this->conversion))
         {
             $query = array($column => array($this->conversion[$operator] => $value));
         }
@@ -955,15 +1007,15 @@ class Builder extends BaseBuilder {
                 '$or' => array(
                     array(
                         $column => array(
-                            '$lte' => $values[0]
-                        )
+                            '$lte' => $values[0],
+                        ),
                     ),
                     array(
                         $column => array(
-                            '$gte' => $values[1]
-                        )
-                    )
-                )
+                            '$gte' => $values[1],
+                        ),
+                    ),
+                ),
             );
         }
         else
@@ -971,8 +1023,8 @@ class Builder extends BaseBuilder {
             return array(
                 $column => array(
                     '$gte' => $values[0],
-                    '$lte' => $values[1]
-                )
+                    '$lte' => $values[1],
+                ),
             );
         }
     }

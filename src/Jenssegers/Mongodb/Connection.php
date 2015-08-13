@@ -111,7 +111,7 @@ class Connection extends \Illuminate\Database\Connection {
     }
 
     /**
-     * return MongoClient object
+     * return MongoClient object.
      *
      * @return MongoClient
      */
@@ -142,7 +142,15 @@ class Connection extends \Illuminate\Database\Connection {
             $options['password'] = $config['password'];
         }
 
-        return new MongoClient($dsn, $options);
+        // By default driver options is an empty array.
+        $driverOptions = array();
+
+        if (isset($config['driver_options']) && is_array($config['driver_options']))
+        {
+            $driverOptions = $config['driver_options'];
+        }
+
+        return new MongoClient($dsn, $options, $driverOptions);
     }
 
     /**
@@ -203,10 +211,10 @@ class Connection extends \Illuminate\Database\Connection {
     }
 
     /**
-    * Get the PDO driver name.
-    *
-    * @return string
-    */
+     * Get the PDO driver name.
+     *
+     * @return string
+     */
     public function getDriverName()
     {
         return 'mongodb';

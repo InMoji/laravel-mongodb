@@ -1,8 +1,11 @@
 <?php namespace Jenssegers\Mongodb;
 
-use DateTime, MongoId, MongoDate, Carbon\Carbon;
+use DateTime;
+use MongoId;
+use MongoDate;
+use Carbon\Carbon;
+use ReflectionMethod;
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Jenssegers\Mongodb\DatabaseManager as Resolver;
 use Jenssegers\Mongodb\Eloquent\Builder;
 use Jenssegers\Mongodb\Relations\EmbedsOneOrMany;
 use Jenssegers\Mongodb\Relations\EmbedsMany;
@@ -63,9 +66,8 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
      */
     public function getQualifiedKeyName()
     {
-    	return $this->getKeyName();
+        return $this->getKeyName();
     }
-
 
     /**
      * Define an embedded one-to-many relationship.
@@ -220,14 +222,9 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
     public function getAttribute($key)
     {
         // Check if the key is an array dot notation.
-        if (str_contains($key, '.'))
+        if (str_contains($key, '.') and array_has($this->attributes, $key))
         {
-            $attributes = array_dot($this->attributes);
-
-            if (array_key_exists($key, $attributes))
-            {
-                return $this->getAttributeValue($key);
-            }
+            return $this->getAttributeValue($key);
         }
 
         $camelKey = camel_case($key);
@@ -237,22 +234,28 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
         // is handled by the parent method.
         if (method_exists($this, $camelKey))
         {
-            $relations = $this->$camelKey();
+            $method = new ReflectionMethod(get_called_class(), $camelKey);
 
-            // This attribute matches an embedsOne or embedsMany relation so we need
-            // to return the relation results instead of the interal attributes.
-            if ($relations instanceof EmbedsOneOrMany)
+            // Ensure the method is not static to avoid conflicting with Eloquent methods.
+            if ( ! $method->isStatic())
             {
-                // If the key already exists in the relationships array, it just means the
-                // relationship has already been loaded, so we'll just return it out of
-                // here because there is no need to query within the relations twice.
-                if (array_key_exists($key, $this->relations))
-                {
-                    return $this->relations[$key];
-                }
+                $relations = $this->$camelKey();
 
-                // Get the relation results.
-                return $this->getRelationshipFromMethod($key, $camelKey);
+                // This attribute matches an embedsOne or embedsMany relation so we need
+                // to return the relation results instead of the interal attributes.
+                if ($relations instanceof EmbedsOneOrMany)
+                {
+                    // If the key already exists in the relationships array, it just means the
+                    // relationship has already been loaded, so we'll just return it out of
+                    // here because there is no need to query within the relations twice.
+                    if (array_key_exists($key, $this->relations))
+                    {
+                        return $this->relations[$key];
+                    }
+
+                    // Get the relation results.
+                    return $this->getRelationshipFromMethod($key, $camelKey);
+                }
             }
         }
 
@@ -306,7 +309,9 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
                 $value = $this->fromDateTime($value);
             }
 
-            array_set($this->attributes, $key, $value); return;
+            array_set($this->attributes, $key, $value);
+
+return;
         }
 
         parent::setAttribute($key, $value);
@@ -330,6 +335,15 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
             if ($value instanceof MongoId)
             {
                 $value = (string) $value;
+            }
+        }
+
+        // Convert dot-notation dates.
+        foreach ($this->getDates() as $key)
+        {
+            if (str_contains($key, '.') and array_has($attributes, $key))
+            {
+                array_set($attributes, $key, (string) $this->asDateTime(array_get($attributes, $key)));
             }
         }
 

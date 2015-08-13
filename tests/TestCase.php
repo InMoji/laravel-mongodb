@@ -10,10 +10,10 @@ class TestCase extends Orchestra\Testbench\TestCase {
      */
     protected function getPackageProviders($app)
     {
-        return array(
+        return [
             'Jenssegers\Mongodb\MongodbServiceProvider',
             'Jenssegers\Mongodb\Auth\PasswordResetServiceProvider',
-        );
+        ];
     }
 
     /**
@@ -27,13 +27,9 @@ class TestCase extends Orchestra\Testbench\TestCase {
         // reset base path to point to our package's src directory
         //$app['path.base'] = __DIR__ . '/../src';
 
-        // load custom config
         $config = require 'config/database.php';
 
-        // set mongodb as default connection
         $app['config']->set('database.default', 'mongodb');
-
-        // overwrite database configuration
         $app['config']->set('database.connections.mysql', $config['connections']['mysql']);
         $app['config']->set('database.connections.mongodb', $config['connections']['mongodb']);
 

@@ -22,19 +22,48 @@ Installation
 
 Make sure you have the MongoDB PHP driver installed. You can find installation instructions at http://php.net/manual/en/mongo.installation.php
 
-Install using composer:
+For Laravel 5, install the latest stable version using composer:
 
-```json
+```
 composer require jenssegers/mongodb
 ```
 
-Add the service provider in `app/config/app.php`:
+And add the service provider in `config/app.php`:
+
+```php
+Jenssegers\Mongodb\MongodbServiceProvider::class,
+```
+
+For Laravel 4.2, use version `~2.0`:
+
+```
+composer require jenssegers/mongodb ~2.0
+```
+
+And add the service provider as follows in `app/config/app.php`:
 
 ```php
 'Jenssegers\Mongodb\MongodbServiceProvider',
 ```
 
+For usage with [Lumen](http://lumen.laravel.com), add the service provider in `bootstrap/app.php`. In this file, you will also need to enable Eloquent. You must however ensure that your call to `$app->withEloquent();` is **below** where you have registered the `MongodbServiceProvider`:
+
+```php
+$app->register('Jenssegers\Mongodb\MongodbServiceProvider');
+
+$app->withEloquent();
+```
+
 The service provider will register a mongodb database extension with the original database manager. There is no need to register additional facades or objects. When using mongodb connections, Laravel will automatically provide you with the corresponding mongodb objects.
+
+For usage outside Laravel, check out the [Capsule manager](https://github.com/illuminate/database/blob/master/README.md) and add:
+
+```php
+$capsule->getDatabaseManager()->extend('mongodb', function($config)
+{
+    return new Jenssegers\Mongodb\Connection($config);
+});
+```
 
 Configuration
 -------------
@@ -54,7 +83,10 @@ And add a new mongodb connection:
     'port'     => 27017,
     'username' => 'username',
     'password' => 'password',
-    'database' => 'database'
+    'database' => 'database',
+    'options' => array(
+        'db' => 'admin' // sets the authentication database required by mongo 3
+    )
 ),
 ```
 
