@@ -1,17 +1,22 @@
 <?php namespace Jenssegers\Mongodb;
 
-use DateTime;
-use MongoId;
-use MongoDate;
 use Carbon\Carbon;
-use ReflectionMethod;
+use DateTime;
+use Illuminate\Database\Eloquent\Model as BaseModel;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Jenssegers\Mongodb\Eloquent\Builder;
-use Jenssegers\Mongodb\Relations\EmbedsOneOrMany;
+use Jenssegers\Mongodb\Eloquent\HybridRelations;
+use Jenssegers\Mongodb\Query\Builder as QueryBuilder;
 use Jenssegers\Mongodb\Relations\EmbedsMany;
 use Jenssegers\Mongodb\Relations\EmbedsOne;
+use Jenssegers\Mongodb\Relations\EmbedsOneOrMany;
+use MongoDate;
+use MongoId;
+use ReflectionMethod;
 
-abstract class Model extends \Jenssegers\Eloquent\Model {
+abstract class Model extends BaseModel {
+
+    use HybridRelations;
 
     /**
      * The collection associated with the model.
@@ -37,8 +42,7 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
     /**
      * Custom accessor for the model's id.
      *
-     * @param mixed $value
-     *
+     * @param  mixed  $value
      * @return mixed
      */
     public function getIdAttribute($value)
@@ -73,8 +77,10 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
      * Define an embedded one-to-many relationship.
      *
      * @param  string  $related
-     * @param  string  $collection
-     * @return \Illuminate\Database\Eloquent\Relations\EmbedsMany
+     * @param  string  $localKey
+     * @param  string  $foreignKey
+     * @param  string  $relation
+     * @return \Jenssegers\Mongodb\Relations\EmbedsMany
      */
     protected function embedsMany($related, $localKey = null, $foreignKey = null, $relation = null)
     {
@@ -109,8 +115,10 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
      * Define an embedded one-to-many relationship.
      *
      * @param  string  $related
-     * @param  string  $collection
-     * @return \Illuminate\Database\Eloquent\Relations\EmbedsMany
+     * @param  string  $localKey
+     * @param  string  $foreignKey
+     * @param  string  $relation
+     * @return \Jenssegers\Mongodb\Relations\EmbedsOne
      */
     protected function embedsOne($related, $localKey = null, $foreignKey = null, $relation = null)
     {
@@ -188,7 +196,7 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
      */
     protected function getDateFormat()
     {
-        return 'Y-m-d H:i:s';
+        return $this->dateFormat ?: 'Y-m-d H:i:s';
     }
 
     /**
@@ -208,9 +216,7 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
      */
     public function getTable()
     {
-        if (isset($this->collection)) return $this->collection;
-
-        return parent::getTable();
+        return $this->collection ?: parent::getTable();
     }
 
     /**
@@ -289,7 +295,6 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
      *
      * @param  string  $key
      * @param  mixed   $value
-     * @return void
      */
     public function setAttribute($key, $value)
     {
@@ -311,7 +316,7 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
 
             array_set($this->attributes, $key, $value);
 
-return;
+            return;
         }
 
         parent::setAttribute($key, $value);
@@ -353,12 +358,12 @@ return;
     /**
      * Remove one or more fields.
      *
-     * @param  mixed $columns
+     * @param  mixed  $columns
      * @return int
      */
     public function drop($columns)
     {
-        if ( ! is_array($columns)) $columns = array($columns);
+        if ( ! is_array($columns)) $columns = [$columns];
 
         // Unset attributes
         foreach ($columns as $column)
@@ -391,7 +396,7 @@ return;
             }
 
             // Do batch push by default.
-            if ( ! is_array($values)) $values = array($values);
+            if ( ! is_array($values)) $values = [$values];
 
             $query = $this->setKeysForSaveQuery($this->newQuery());
 
@@ -406,12 +411,14 @@ return;
     /**
      * Remove one or more values from an array.
      *
+     * @param  string  $column
+     * @param  mixed   $values
      * @return mixed
      */
     public function pull($column, $values)
     {
         // Do batch pull by default.
-        if ( ! is_array($values)) $values = array($values);
+        if ( ! is_array($values)) $values = [$values];
 
         $query = $this->setKeysForSaveQuery($this->newQuery());
 
@@ -426,11 +433,10 @@ return;
      * @param  string  $column
      * @param  array   $values
      * @param  bool    $unique
-     * @return void
      */
     protected function pushAttributeValues($column, array $values, $unique = false)
     {
-        $current = $this->getAttributeFromArray($column) ?: array();
+        $current = $this->getAttributeFromArray($column) ?: [];
 
         foreach ($values as $value)
         {
@@ -446,15 +452,14 @@ return;
     }
 
     /**
-     * Rempove one or more values to the underlying attribute value and sync with original.
+     * Remove one or more values to the underlying attribute value and sync with original.
      *
      * @param  string  $column
      * @param  array   $values
-     * @return void
      */
     protected function pullAttributeValues($column, array $values)
     {
-        $current = $this->getAttributeFromArray($column) ?: array();
+        $current = $this->getAttributeFromArray($column) ?: [];
 
         foreach ($values as $value)
         {
@@ -474,7 +479,7 @@ return;
     /**
      * Set the parent relation.
      *
-     * @param Relation $relation
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation  $relation
      */
     public function setParentRelation(Relation $relation)
     {
@@ -484,7 +489,7 @@ return;
     /**
      * Get the parent relation.
      *
-     * @return Relation
+     * @return \Illuminate\Database\Eloquent\Relations\Relation
      */
     public function getParentRelation()
     {
@@ -503,6 +508,18 @@ return;
     }
 
     /**
+     * Get a new query builder instance for the connection.
+     *
+     * @return Builder
+     */
+    protected function newBaseQueryBuilder()
+    {
+        $connection = $this->getConnection();
+
+        return new QueryBuilder($connection, $connection->getPostProcessor());
+    }
+
+    /**
      * Handle dynamic method calls into the method.
      *
      * @param  string  $method
@@ -514,7 +531,7 @@ return;
         // Unset method
         if ($method == 'unset')
         {
-            return call_user_func_array(array($this, 'drop'), $parameters);
+            return call_user_func_array([$this, 'drop'], $parameters);
         }
 
         return parent::__call($method, $parameters);

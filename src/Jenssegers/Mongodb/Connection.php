@@ -22,7 +22,6 @@ class Connection extends \Illuminate\Database\Connection {
      * Create a new database connection instance.
      *
      * @param  array   $config
-     * @return void
      */
     public function __construct(array $config)
     {
@@ -143,7 +142,7 @@ class Connection extends \Illuminate\Database\Connection {
         }
 
         // By default driver options is an empty array.
-        $driverOptions = array();
+        $driverOptions = [];
 
         if (isset($config['driver_options']) && is_array($config['driver_options']))
         {
@@ -155,8 +154,6 @@ class Connection extends \Illuminate\Database\Connection {
 
     /**
      * Disconnect from the underlying MongoClient connection.
-     *
-     * @return void
      */
     public function disconnect()
     {
@@ -234,7 +231,7 @@ class Connection extends \Illuminate\Database\Connection {
             try
             {
                 $e = null;
-                return call_user_func_array(array($this->db, $method), $parameters);
+                return call_user_func_array([ $this->db, $method ], $parameters);
             }
             catch (MongoCursorException $e)
             {
@@ -245,5 +242,4 @@ class Connection extends \Illuminate\Database\Connection {
             }
         }
     }
-
 }
